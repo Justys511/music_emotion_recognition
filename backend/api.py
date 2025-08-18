@@ -4,7 +4,7 @@ import shutil
 import os
 import sys
 
-sys.path.append(os.path.abspath("../Emotify_Emotion_Detection/src"))
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "Emotion_Detection", "src")))
 
 from test_model import predict_emotion
 
