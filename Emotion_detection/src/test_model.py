@@ -6,8 +6,8 @@ import os
 
 # Paths
 
-BASE_DIR = Path(__file__).resolve().parent              # backend/
-MODEL_PATH = BASE_DIR / "model" / "Emotion_Voice_Detection_Model_Emotify.h5"
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+MODEL_PATH = os.path.join(BASE_DIR, "..", "model", "Emotion_Voice_Detection_Model_Emotify.h5")
 MODEL_PATH = os.path.normpath(MODEL_PATH)
 
 model = tf.keras.models.load_model(MODEL_PATH)
