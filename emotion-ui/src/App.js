@@ -1,11 +1,18 @@
 import React, { useState } from "react";
 
 // Базовый URL API:
-// - в проде берётся из .env.production → REACT_APP_API_URL
-// - локально (npm start) падаем на http://localhost:8000
+// - в проде берётся из REACT_APP_API_URL (Vercel → Env Vars)
+// - локально (npm start) используется http://localhost:8000
 const API_URL =
   process.env.REACT_APP_API_URL ||
   (process.env.NODE_ENV === "development" ? "http://localhost:8000" : "");
+
+// Хелпер: склеивает базовый URL и путь без двойных слэшей
+const api = (path) => {
+  const base = (API_URL || "").replace(/\/+$/, ""); // срезать хвостовые /
+  const tail = path.startsWith("/") ? path : `/${path}`;
+  return `${base}${tail}`;
+};
 
 export default function App() {
   const [selectedFile, setSelectedFile] = useState(null);
@@ -36,7 +43,7 @@ export default function App() {
     formData.append("file", selectedFile);
 
     try {
-      const response = await fetch(`${API_URL}/predict`, {
+      const response = await fetch(api("/predict"), {
         method: "POST",
         body: formData,
       });
@@ -64,7 +71,7 @@ export default function App() {
           🎵 Emotion Detector
         </h1>
 
-        {/* подсказка какой API URL сейчас используется */}
+        {/* Подсказка, какой API URL сейчас используется */}
         <p className="text-xs text-gray-500 mb-3">
           API: <span className="font-mono">{API_URL || "(не задан)"}</span>
         </p>
