@@ -6,7 +6,7 @@ import sys
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "Emotion_Detection", "src")))
 
-from test_model import predict_emotion
+from .test_model import predict_emotion
 
 app = FastAPI()
 
