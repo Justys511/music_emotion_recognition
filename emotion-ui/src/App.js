@@ -7,6 +7,8 @@ const API_URL =
   process.env.REACT_APP_API_URL ||
   (process.env.NODE_ENV === "development" ? "http://localhost:8000" : "");
 const MAX_UPLOAD_BYTES = 25 * 1024 * 1024;
+const REQUEST_TIMEOUT_MS = 10 * 60 * 1000;
+const POLL_INTERVAL_MS = 2000;
 
 // Хелпер: склеивает базовый URL и путь без двойных слэшей
 const api = (path) => {
@@ -47,11 +49,14 @@ export default function App() {
 
     const formData = new FormData();
     formData.append("file", selectedFile);
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
 
     try {
       const response = await fetch(api("/predict"), {
         method: "POST",
         body: formData,
+        signal: controller.signal,
       });
 
       if (!response.ok) {
@@ -59,13 +64,43 @@ export default function App() {
         throw new Error(`API ${response.status}: ${txt || "Request failed"}`);
       }
 
-      const data = await response.json();
-      setResult(data);
+      const { job_id: jobId } = await response.json();
+      const deadline = Date.now() + REQUEST_TIMEOUT_MS;
+      let completed = false;
+
+      while (Date.now() < deadline) {
+        await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
+        const statusResponse = await fetch(api(`/predict/${jobId}`), {
+          signal: controller.signal,
+        });
+        if (!statusResponse.ok) {
+          throw new Error(`API ${statusResponse.status}: Request failed`);
+        }
+
+        const status = await statusResponse.json();
+        if (status.status === "completed") {
+          setResult(status.result);
+          completed = true;
+          break;
+        }
+        if (status.status === "failed") {
+          throw new Error(status.error || "Prediction failed.");
+        }
+      }
+
+      if (!completed) {
+        throw new Error("Analysis timed out after 10 minutes.");
+      }
     } catch (error) {
       console.error("Upload failed:", error);
       setResult(null);
-      setErrorText(error.message || "Failed to analyze file.");
+      setErrorText(
+        error.name === "AbortError"
+          ? "Analysis timed out after 10 minutes."
+          : error.message || "Failed to analyze file."
+      );
     } finally {
+      clearTimeout(timeoutId);
       setLoading(false);
     }
   };

@@ -1,14 +1,18 @@
-from fastapi import FastAPI, UploadFile, File, HTTPException, Request
+from fastapi import BackgroundTasks, FastAPI, UploadFile, File, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 import os
 import sys
 import logging
+import threading
+import uuid
 from pathlib import Path
 import librosa
 
 MAX_UPLOAD_BYTES = 25 * 1024 * 1024
 MAX_AUDIO_SECONDS = 180
 logger = logging.getLogger(__name__)
+jobs = {}
+jobs_lock = threading.Lock()
 
 app = FastAPI()
 
@@ -45,8 +49,26 @@ app.add_middleware(
 def health():
     return {"status": "ok"}
 
+def process_prediction(job_id, temp_path):
+    try:
+        print(f"Starting background prediction {job_id}", flush=True)
+        result = predict_emotion(temp_path)
+        with jobs_lock:
+            jobs[job_id] = {"status": "completed", "result": result}
+    except Exception as error:
+        logger.exception("Prediction failed for job %s", job_id)
+        with jobs_lock:
+            jobs[job_id] = {"status": "failed", "error": str(error)}
+    finally:
+        if os.path.exists(temp_path):
+            os.remove(temp_path)
+
 @app.post("/predict")
-async def predict(request: Request, file: UploadFile = File(...)):
+async def predict(
+    request: Request,
+    background_tasks: BackgroundTasks,
+    file: UploadFile = File(...),
+):
     content_length = request.headers.get("content-length")
     if content_length and int(content_length) > MAX_UPLOAD_BYTES:
         raise HTTPException(status_code=413, detail="Audio file must be 25 MB or smaller.")
@@ -78,8 +100,20 @@ async def predict(request: Request, file: UploadFile = File(...)):
                 detail="Audio must be 3 minutes or shorter.",
             )
 
-        print(f"Starting emotion prediction for {duration:.1f}-second audio", flush=True)
-        return predict_emotion(temp_path)
-    finally:
+        job_id = uuid.uuid4().hex
+        with jobs_lock:
+            jobs[job_id] = {"status": "processing"}
+        background_tasks.add_task(process_prediction, job_id, temp_path)
+        return {"job_id": job_id, "status": "processing"}
+    except Exception:
         if os.path.exists(temp_path):
             os.remove(temp_path)
+        raise
+
+@app.get("/predict/{job_id}")
+def prediction_status(job_id: str):
+    with jobs_lock:
+        job = jobs.get(job_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail="Prediction job not found.")
+    return job
