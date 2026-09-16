@@ -2,9 +2,13 @@ from fastapi import FastAPI, UploadFile, File, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 import os
 import sys
+import logging
 from pathlib import Path
+import librosa
 
 MAX_UPLOAD_BYTES = 25 * 1024 * 1024
+MAX_AUDIO_SECONDS = 180
+logger = logging.getLogger(__name__)
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "Emotion_detection", "src")))
 
@@ -49,6 +53,15 @@ async def predict(request: Request, file: UploadFile = File(...)):
                     )
                 buffer.write(chunk)
 
+        logger.info("Audio uploaded: %s bytes; extracting duration", bytes_written)
+        duration = librosa.get_duration(path=temp_path)
+        if duration > MAX_AUDIO_SECONDS:
+            raise HTTPException(
+                status_code=413,
+                detail="Audio must be 3 minutes or shorter.",
+            )
+
+        logger.info("Starting emotion prediction for %.1f-second audio", duration)
         return predict_emotion(temp_path)
     finally:
         if os.path.exists(temp_path):
