@@ -3,6 +3,7 @@ import tensorflow as tf
 import librosa
 import joblib
 import os
+import threading
 from pathlib import Path
 # Paths
 
@@ -10,10 +11,20 @@ BASE_DIR = Path(__file__).resolve().parent
 MODEL_PATH = BASE_DIR / "model" / "Emotion_Voice_Detection_Model_Emotify.h5"
 
 
-model = tf.keras.models.load_model(
-    str(MODEL_PATH),
-    compile=False,
-)
+model = None
+model_lock = threading.Lock()
+
+
+def get_model():
+    global model
+    if model is None:
+        with model_lock:
+            if model is None:
+                model = tf.keras.models.load_model(
+                    str(MODEL_PATH),
+                    compile=False,
+                )
+    return model
 
 # List of emotions that the model is trained to predict
 emotion_labels = [
@@ -111,7 +122,7 @@ def predict_emotion(file_path):
     if features is None or len(features) == 0:
         return {"error": "Could not extract features."}
 
-    predictions = model.predict(features)
+    predictions = get_model().predict(features)
     avg_prediction = np.mean(predictions, axis=0)
 
     if len(avg_prediction) != len(emotion_labels):
