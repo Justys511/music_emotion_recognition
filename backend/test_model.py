@@ -10,18 +10,8 @@ BASE_DIR = Path(__file__).resolve().parent
 MODEL_PATH = BASE_DIR / "model" / "Emotion_Voice_Detection_Model_Emotify.h5"
 
 
-class CompatibleInputLayer(tf.keras.layers.InputLayer):
-    """Accept models saved with the newer batch_shape configuration key."""
-
-    def __init__(self, *args, batch_shape=None, **kwargs):
-        if batch_shape is not None:
-            kwargs["batch_input_shape"] = batch_shape
-        super().__init__(*args, **kwargs)
-
-
 model = tf.keras.models.load_model(
     str(MODEL_PATH),
-    custom_objects={"InputLayer": CompatibleInputLayer},
     compile=False,
 )
 
