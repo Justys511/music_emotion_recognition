@@ -10,17 +10,26 @@ BASE_DIR = Path(__file__).resolve().parent
 MODEL_PATH = BASE_DIR / "model" / "Emotion_Voice_Detection_Model_Emotify.h5"
 
 
-model = tf.keras.models.load_model(str(MODEL_PATH))
-TEST_AUDIO = "test_audio/t14.wav"  # Replace with the desired file
+class CompatibleInputLayer(tf.keras.layers.InputLayer):
+    """Accept models saved with the newer batch_shape configuration key."""
+
+    def __init__(self, *args, batch_shape=None, **kwargs):
+        if batch_shape is not None:
+            kwargs["batch_input_shape"] = batch_shape
+        super().__init__(*args, **kwargs)
+
+
+model = tf.keras.models.load_model(
+    str(MODEL_PATH),
+    custom_objects={"InputLayer": CompatibleInputLayer},
+    compile=False,
+)
 
 # List of emotions that the model is trained to predict
 emotion_labels = [
     "amazement", "solemnity", "tenderness", "nostalgia", "calmness",
     "power", "joyful_activation", "tension", "sadness"
 ]
-
-print("📂 Loading the model...")
-model = tf.keras.models.load_model(MODEL_PATH)
 
 ###################################################
 # FEATURE EXTRACTION FUNCTIONS (as in extract_features.py)
@@ -106,48 +115,6 @@ def extract_features_for_inference(file_path, segment_length=60.0, max_pad_lengt
     except Exception as e:
         print(f"❌ Error while processing {file_path}: {e}")
         return None
-
-###################################################
-# MAIN ANALYSIS LOGIC
-###################################################
-print(f"🎵 Analyzing audio file: {TEST_AUDIO}")
-features = extract_features_for_inference(TEST_AUDIO, segment_length=60.0, max_pad_length=100)
-
-if features is not None and len(features) > 0:
-    # Predict for each segment
-    predictions = model.predict(features)  
-    # shape -> (num_segments, 9) if there are 9 emotions
-
-    # Average prediction
-    avg_prediction = np.mean(predictions, axis=0)
-
-    # Check output size
-    if len(avg_prediction) != len(emotion_labels):
-        print(f"⚠️ Error: Model output size ({len(avg_prediction)}) != number of emotions ({len(emotion_labels)})!")
-        print("🛠 Possibly the model was trained on a different set of features/emotions.")
-    else:
-        # Display probabilities
-        print("\n🔮 **Average Predicted Emotions (probabilities)**")
-        for emotion, prob in zip(emotion_labels, avg_prediction):
-            print(f"{emotion}: {prob:.4f}")
-
-        # Identify primary emotions if their probability is close to the maximum
-        best_prob = np.max(avg_prediction)
-        EPS = 0.02  # emotions with prob >= (best_prob - EPS) are also considered main
-        top_emotions = []
-        for emotion, prob in zip(emotion_labels, avg_prediction):
-            if prob >= best_prob - EPS:
-                top_emotions.append((emotion, prob))
-
-        # Sort by probability
-        top_emotions.sort(key=lambda x: x[1], reverse=True)
-
-        print(f"\n🎭 **Main Emotion(s) of the Song** (within {EPS} of max prob):")
-        for em, p in top_emotions:
-            print(f" - {em} (prob={p:.4f})")
-
-else:
-    print("❌ Failed to process the audio file.")
 
 def predict_emotion(file_path):
     features = extract_features_for_inference(file_path)
