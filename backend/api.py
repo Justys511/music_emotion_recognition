@@ -10,11 +10,25 @@ MAX_UPLOAD_BYTES = 25 * 1024 * 1024
 MAX_AUDIO_SECONDS = 180
 logger = logging.getLogger(__name__)
 
+app = FastAPI()
+
+@app.middleware("http")
+async def request_logging_middleware(request: Request, call_next):
+    print(f"REQUEST START {request.method} {request.url.path}", flush=True)
+    try:
+        response = await call_next(request)
+        print(
+            f"REQUEST END {request.method} {request.url.path} {response.status_code}",
+            flush=True,
+        )
+        return response
+    except Exception:
+        logger.exception("REQUEST FAILED %s %s", request.method, request.url.path)
+        raise
+
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "Emotion_detection", "src")))
 
 from .test_model import predict_emotion
-
-app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware,
@@ -53,7 +67,10 @@ async def predict(request: Request, file: UploadFile = File(...)):
                     )
                 buffer.write(chunk)
 
-        logger.info("Audio uploaded: %s bytes; extracting duration", bytes_written)
+        print(
+            f"Audio uploaded: {bytes_written} bytes; extracting duration",
+            flush=True,
+        )
         duration = librosa.get_duration(path=temp_path)
         if duration > MAX_AUDIO_SECONDS:
             raise HTTPException(
@@ -61,7 +78,7 @@ async def predict(request: Request, file: UploadFile = File(...)):
                 detail="Audio must be 3 minutes or shorter.",
             )
 
-        logger.info("Starting emotion prediction for %.1f-second audio", duration)
+        print(f"Starting emotion prediction for {duration:.1f}-second audio", flush=True)
         return predict_emotion(temp_path)
     finally:
         if os.path.exists(temp_path):

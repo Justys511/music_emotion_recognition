@@ -18,12 +18,14 @@ model_lock = threading.Lock()
 def get_model():
     global model
     if model is None:
+        print("Loading TensorFlow model", flush=True)
         with model_lock:
             if model is None:
                 model = tf.keras.models.load_model(
                     str(MODEL_PATH),
                     compile=False,
                 )
+                print("TensorFlow model loaded", flush=True)
     return model
 
 # List of emotions that the model is trained to predict
@@ -118,11 +120,14 @@ def extract_features_for_inference(file_path, segment_length=60.0, max_pad_lengt
         return None
 
 def predict_emotion(file_path):
+    print("Extracting audio features", flush=True)
     features = extract_features_for_inference(file_path)
     if features is None or len(features) == 0:
         return {"error": "Could not extract features."}
 
+    print(f"Running prediction for {len(features)} segment(s)", flush=True)
     predictions = get_model().predict(features)
+    print("Prediction completed", flush=True)
     avg_prediction = np.mean(predictions, axis=0)
 
     if len(avg_prediction) != len(emotion_labels):
