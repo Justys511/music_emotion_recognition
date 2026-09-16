@@ -13,7 +13,6 @@ app = FastAPI()
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
-        "https://music-emotion-recognition.vercel.app",
         "https://music-emotion-recognition-6354-778saenf9.vercel.app",
         "http://localhost:3000",
     ],
