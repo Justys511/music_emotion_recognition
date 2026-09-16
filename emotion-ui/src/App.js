@@ -6,6 +6,7 @@ import React, { useState } from "react";
 const API_URL =
   process.env.REACT_APP_API_URL ||
   (process.env.NODE_ENV === "development" ? "http://localhost:8000" : "");
+const MAX_UPLOAD_BYTES = 25 * 1024 * 1024;
 
 // Хелпер: склеивает базовый URL и путь без двойных слэшей
 const api = (path) => {
@@ -28,6 +29,11 @@ export default function App() {
 
   const handleUpload = async () => {
     if (!selectedFile) return;
+
+    if (selectedFile.size > MAX_UPLOAD_BYTES) {
+      setErrorText("Audio file must be 25 MB or smaller.");
+      return;
+    }
 
     if (!API_URL) {
       setErrorText(

@@ -1,8 +1,10 @@
-from fastapi import FastAPI, UploadFile, File
+from fastapi import FastAPI, UploadFile, File, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-import shutil
 import os
 import sys
+from pathlib import Path
+
+MAX_UPLOAD_BYTES = 25 * 1024 * 1024
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "Emotion_detection", "src")))
 
@@ -26,15 +28,28 @@ def health():
     return {"status": "ok"}
 
 @app.post("/predict")
-async def predict(file: UploadFile = File(...)):
+async def predict(request: Request, file: UploadFile = File(...)):
+    content_length = request.headers.get("content-length")
+    if content_length and int(content_length) > MAX_UPLOAD_BYTES:
+        raise HTTPException(status_code=413, detail="Audio file must be 25 MB or smaller.")
+
     temp_dir = "temp"
     os.makedirs(temp_dir, exist_ok=True)
-    temp_path = os.path.join(temp_dir, file.filename)
+    temp_path = os.path.join(temp_dir, Path(file.filename or "upload").name)
 
-    with open(temp_path, "wb") as buffer:
-        shutil.copyfileobj(file.file, buffer)
+    try:
+        bytes_written = 0
+        with open(temp_path, "wb") as buffer:
+            while chunk := file.file.read(1024 * 1024):
+                bytes_written += len(chunk)
+                if bytes_written > MAX_UPLOAD_BYTES:
+                    raise HTTPException(
+                        status_code=413,
+                        detail="Audio file must be 25 MB or smaller.",
+                    )
+                buffer.write(chunk)
 
-    result = predict_emotion(temp_path)
-
-    os.remove(temp_path)
-    return result
+        return predict_emotion(temp_path)
+    finally:
+        if os.path.exists(temp_path):
+            os.remove(temp_path)
