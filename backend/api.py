@@ -37,7 +37,7 @@ from .test_model import predict_emotion
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
-        "https://music-emotion-recognition-6354-oxwuj6zf4.vercel.app",
+        "https://music-emotion-recognition-6354-rb0ia3spk.vercel.app",
         "http://localhost:3000",
     ],
     allow_credentials=True,
