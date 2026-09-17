@@ -1,14 +1,16 @@
 import numpy as np
 import tensorflow as tf
 import librosa
-import joblib
-import os
 import threading
 from pathlib import Path
 # Paths
 
 BASE_DIR = Path(__file__).resolve().parent
 MODEL_PATH = BASE_DIR / "model" / "Emotion_Voice_Detection_Model_Emotify.h5"
+TARGET_SAMPLE_RATE = 16000
+
+tf.config.threading.set_intra_op_parallelism_threads(1)
+tf.config.threading.set_inter_op_parallelism_threads(1)
 
 
 model = None
@@ -94,10 +96,9 @@ def extract_features_for_inference(file_path, segment_length=60.0, max_pad_lengt
     6) Combines all chunks into one numpy array => (num_segments, 123, max_pad_length, 1)
     """
     try:
-        audio, sr = librosa.load(file_path, sr=None)
+        audio, sr = librosa.load(file_path, sr=TARGET_SAMPLE_RATE, mono=True)
         total_duration = librosa.get_duration(y=audio, sr=sr)
 
-        features_list = []
         # Iterate over segments
         for start in np.arange(0, total_duration, segment_length):
             end = min(start + segment_length, total_duration)
@@ -107,26 +108,22 @@ def extract_features_for_inference(file_path, segment_length=60.0, max_pad_lengt
             feat_array = compute_features(segment, sr, max_pad_length=max_pad_length)
             # Add the channel dimension
             feat_array = np.expand_dims(feat_array, axis=-1)  # (123, max_pad_length, 1)
-            features_list.append(feat_array)
-
-        # Combine
-        if len(features_list) == 0:
-            return None
-
-        return np.array(features_list)  # shape -> (num_segments, 123, max_pad_length, 1)
+            yield feat_array
 
     except Exception as e:
         print(f"❌ Error while processing {file_path}: {e}")
-        return None
+        return
 
 def predict_emotion(file_path):
     print("Extracting audio features", flush=True)
-    features = extract_features_for_inference(file_path)
-    if features is None or len(features) == 0:
+    predictions = []
+    for features in extract_features_for_inference(file_path):
+        print("Running prediction for one segment", flush=True)
+        predictions.append(get_model().predict(np.expand_dims(features, axis=0), verbose=0)[0])
+
+    if not predictions:
         return {"error": "Could not extract features."}
 
-    print(f"Running prediction for {len(features)} segment(s)", flush=True)
-    predictions = get_model().predict(features)
     print("Prediction completed", flush=True)
     avg_prediction = np.mean(predictions, axis=0)
 

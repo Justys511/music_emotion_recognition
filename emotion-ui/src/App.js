@@ -21,6 +21,7 @@ export default function App() {
   const [selectedFile, setSelectedFile] = useState(null);
   const [result, setResult] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [processing, setProcessing] = useState(false);
   const [errorText, setErrorText] = useState("");
 
   const handleFileChange = (event) => {
@@ -45,6 +46,7 @@ export default function App() {
     }
 
     setLoading(true);
+    setProcessing(true);
     setErrorText("");
 
     const formData = new FormData();
@@ -81,6 +83,7 @@ export default function App() {
         if (status.status === "completed") {
           setResult(status.result);
           completed = true;
+          setProcessing(false);
           break;
         }
         if (status.status === "failed") {
@@ -94,6 +97,7 @@ export default function App() {
     } catch (error) {
       console.error("Upload failed:", error);
       setResult(null);
+      setProcessing(false);
       setErrorText(
         error.name === "AbortError"
           ? "Analysis timed out after 10 minutes."
@@ -138,6 +142,12 @@ export default function App() {
           </div>
         )}
 
+        {processing && !errorText && (
+          <div className="mt-4 text-sm text-indigo-700">
+            Processing audio... This can take several minutes.
+          </div>
+        )}
+
         {result && !errorText && (
           <div className="mt-6 text-left bg-gray-50 border border-gray-200 rounded-lg p-5">
             {result.error ? (
@@ -148,7 +158,7 @@ export default function App() {
                   🎭 Main Emotion:
                 </h2>
                 <p className="text-xl font-bold text-indigo-600 mb-4">
-                  {result.emotion}
+                  {result.emotion || "No emotion returned"}
                 </p>
 
                 {result.probabilities && (
