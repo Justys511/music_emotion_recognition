@@ -81,6 +81,9 @@ export default function App() {
 
         const status = await statusResponse.json();
         if (status.status === "completed") {
+          if (!status.result || !status.result.emotion) {
+            throw new Error("Backend returned an empty prediction.");
+          }
           setResult(status.result);
           completed = true;
           setProcessing(false);

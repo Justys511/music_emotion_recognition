@@ -54,7 +54,10 @@ def process_prediction(job_id, temp_path):
         print(f"Starting background prediction {job_id}", flush=True)
         result = predict_emotion(temp_path)
         with jobs_lock:
-            jobs[job_id] = {"status": "completed", "result": result}
+            if result.get("error"):
+                jobs[job_id] = {"status": "failed", "error": result["error"]}
+            else:
+                jobs[job_id] = {"status": "completed", "result": result}
     except Exception as error:
         logger.exception("Prediction failed for job %s", job_id)
         with jobs_lock:
